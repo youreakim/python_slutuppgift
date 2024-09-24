@@ -1,0 +1,15 @@
+[tool.poetry]
+name = "02-python-slutuppgift"
+version = "0.1.0"
+description = ""
+authors = ["Joakim Larsson <youreakimlarsson@bahnhof.se>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+psutil = "^6.0.0"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
