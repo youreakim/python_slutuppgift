@@ -1,6 +1,7 @@
 import json
 import os
 import socket
+from datetime import datetime
 
 import psutil
 
@@ -17,9 +18,14 @@ class Monitor:
         self.interval = 60
         self.is_active = False
 
-        self.alarms["cpu"].add(cpu_usage)
-        self.alarms["memory"].add(memory_usage)
-        self.alarms["disk"].add(disk_usage)
+        if cpu_usage != 0:
+            self.alarms["cpu"].add(cpu_usage)
+
+        if memory_usage != 0:
+            self.alarms["memory"].add(memory_usage)
+
+        if disk_usage != 0:
+            self.alarms["disk"].add(disk_usage)
 
     def activate(self) -> None:
         self.is_active = True
@@ -58,33 +64,66 @@ class Monitor:
     def add_alarm(self, what: str, value: int) -> None:
         self.alarms[what].add(value)
 
+        print(self.alarms)
+
     def remove_alarm(self, what: str, value: int) -> None:
         self.alarms[what].remove(value)
+
+        print(self.alarms)
 
     def check_alarms(self):
         current_status = self.get_current_status()
 
-        cpu_alarms, disk_alarms, memory_alarms = [], [], []
+        timestamp = datetime.now()
 
-        for alarm in self.alarms:
-            if alarm == "cpu":
+        alerts = []
+
+        for alarm_type, alarm_levels in self.alarms.items():
+            if alarm_type == "cpu":
                 cpu_alarms = [
-                    {"alarm": al, "current": current_status["cpu"]}
-                    for al in self.alarms[alarm]
+                    {
+                        "alarm_level": al,
+                        "current": current_status["cpu"],
+                        "alarm_type": alarm_type,
+                        "timestamp": timestamp,
+                    }
+                    for al in alarm_levels
                     if current_status["cpu"] >= al
                 ]
 
-            elif alarm == "disk":
-                pass
+                alerts.extend(cpu_alarms)
 
-            elif alarm == "memory":
+            elif alarm_type == "disk":
+                for disk in current_status[alarm_type]:
+                    disk_alarms = [
+                        {
+                            "alarm_level": al,
+                            "current": disk["quota"],
+                            "alarm_type": alarm_type,
+                            "path": disk["path"],
+                            "timestamp": timestamp,
+                        }
+                        for al in alarm_levels
+                        if disk["quota"] >= al
+                    ]
+
+                    alerts.extend(disk_alarms)
+
+            elif alarm_type == "memory":
                 memory_alarms = [
-                    {"alarm": al, "current": current_status["memory"]["percentage"]}
-                    for al in self.alarms[alarm]
+                    {
+                        "alarm_level": al,
+                        "current": current_status["memory"]["percentage"],
+                        "alarm_type": alarm_type,
+                        "timestamp": timestamp,
+                    }
+                    for al in alarm_levels
                     if current_status["memory"]["percentage"] >= al
                 ]
 
-        return {"cpu": cpu_alarms, "disk": disk_alarms, "memory": memory_alarms}
+                alerts.extend(memory_alarms)
+
+        return alerts
 
 
 if __name__ == "__main__":
