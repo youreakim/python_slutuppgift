@@ -1,158 +1,172 @@
-import socket
 import sys
-from time import sleep
+import termios
+import threading
+import tty
 
 import psutil
 from monitor import Monitor
+
+
+def keyboard_reaction():
+    fd = sys.stdin.fileno()
+    old_settings = termios.tcgetattr(fd)
+    try:
+        tty.setraw(sys.stdin.fileno())
+        sys.stdin.read(1)
+    finally:
+        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
 
 
 class Manager:
     def __init__(self) -> None:
         self.menu_options = {
             "main": [
-                ("Starta övervakning", self.start_monitoring),
-                ("Lista aktiv övervakning", None),  # list_current_monitoring
-                ("Skapa larm", None),  # add_alarm
-                ("Ta bort larm", None),  # show_alarm
-                ("Starta övervakningsläge", None),  # show_monitoring
-                ("Visa alarm", None),  # remove_alarm
-                ("Avsluta", exit),
+                "Starta övervakning",
+                "Lista aktiv övervakning",
+                "Skapa larm",
+                "Ta bort larm",
+                "Starta övervakningsläge",
+                "Visa alarm",
+                "Avsluta",
             ],
             "add": [
-                ("CPU användning", None),  # add_alarm, 'cpu'
-                ("Minnesanvändning", None),  # add_alarm, 'memory'
-                ("Diskanvändning", None),  # add_alarm, 'disk'
-                ("Tillbaka till huvudmenyn", None),  # show_menu, main
+                "CPU användning",
+                "Minnesanvändning",
+                "Diskanvändning",
+                "Tillbaka till huvudmenyn",
             ],
             "remove": [
-                ("CPU användning", None),  # remove_alarm, 'cpu'
-                ("Minnesanvändning", None),  # remove_alarm, 'memory'
-                ("Diskanvändning", None),  # remove_alarm, 'disk'
-                ("Tillbaka till huvudmenyn", None),  # show_menu, main
+                "CPU användning",
+                "Minnesanvändning",
+                "Diskanvändning",
+                "Tillbaka till huvudmenyn",
             ],
         }
         self.current_menu = "main"
-        self.alarms = {"cpu": set(), "disk": set(), "memory": set()}
         self.monitor = Monitor()
 
     def run(self) -> None:
         while True:
-            self.show_menu("main")
+            self.show_menu(self.menu_options["main"])
             self.process_answer()
 
     def start_monitoring(self) -> None:
         print("Startar övervakning")
-        self.monitor.activate()
+
+        threading.Thread(target=self.monitor.run, daemon=True).start()
 
     def list_current_status(self) -> None:
-        if not self.monitor.is_active:
-            print("Ingen övervakning körs just nu")
-            return
-
         current_status = self.monitor.get_current_status()
 
         print(f"CPU användning: {current_status['cpu']}%")
 
         print(
-            f"Minnesanvändning: {current_status['memory']['percentage']}"
-            f"({round(current_status['memory']['used'] / 1024 ** 3, 1)} GB av "
-            f"{round(current_status['memory']['total'] / 1024 ** 3)} GB används)"
+            f"Minnesanvändning: {current_status['memory']['percent']}% "
+            f"({current_status['memory']['used']} av "
+            f"{current_status['memory']['total']} används)"
         )
 
         print("Diskanvändning för:")
         for disk_partition in current_status["disk"]:
             print(
-                f"\t{disk_partition['path']: <12}: {disk_partition['quota']}% "
-                f"({round(disk_partition['used'] / 1024 ** 3)} GB av"
-                f" {round(disk_partition['size'] / 1024 ** 3)} GB används)"
+                f"\t{disk_partition['path']: <12}: {disk_partition['percent']}% "
+                f"({disk_partition['used']} av"
+                f" {disk_partition['size']} används)"
             )
 
+        print("Tryck på valfri tangent för att återgå till huvudmenyn")
+        t = threading.Thread(target=keyboard_reaction)
+        t.start()
+        t.join()
+
     def add_alarm(self) -> None:
+        alarm = {}
+
+        self.show_menu(self.menu_options["add"])
+
         while True:
-            self.show_menu("add")
+            answer = input("Välj en av ovanstående: ")
 
-            first_choice = input("Välj en av ovanstående: ")
-
-            if not first_choice.isnumeric():
+            if not answer.isnumeric() or (
+                1 > int(answer) >= len(self.menu_options["add"])
+            ):
                 print("Ej giltigt värde, försök igen")
                 continue
 
-            if 0 < int(first_choice) < len(self.menu_options["add"]):
-                what = ["cpu", "memory", "disk"][int(first_choice) - 1]
+            alarm["category"] = ["cpu", "memory", "disk"][int(answer) - 1]
+            break
 
-                while True:
-                    alarm_value = input("Ställ in nivå för alarmet: ")
+        if alarm["category"] == "disk":
+            partitions = psutil.disk_partitions()
 
-                    if not alarm_value.isnumeric():
-                        print("Ej giltigt värde, försök igen")
-                        continue
+            self.show_menu([partition.mountpoint for partition in partitions])
 
-                    if 0 <= int(alarm_value) <= 100:
-                        self.monitor.add_alarm(what, int(alarm_value))
-                        break
+            while True:
+                answer = input("Välj en av de ovanstående: ")
 
-            elif int(first_choice) == 4:
+                if not answer.isnumeric() or (1 > int(answer) >= len(partitions)):
+                    print("Ej giltigt värde, försök igen")
+                    continue
+
+                alarm["mountpoint"] = partitions[int(answer) - 1].mountpoint
                 break
+
+        while True:
+            answer = input("Välj den nivå där det ska larmas: ")
+
+            if not answer.isnumeric() or (0 > int(answer) > 100):
+                print("Ej giltigt värde, försök igen")
+                continue
+
+            alarm["level"] = int(answer)
+            break
+
+        self.monitor.add_alarm(alarm)
 
     def remove_alarm(self) -> None:
+        if len(self.monitor.alarms) == 0:
+            print("Det finns inga alarm att ta bort")
+            return None
+
         while True:
-            self.show_menu("remove")
+            alarm_list = list(self.monitor.alarms)
 
-            first_choice = input("Välj en av ovanstående: ")
+            for count, alarm in enumerate(alarm_list, 1):
+                print(f"{count}. {alarm}")
 
-            if not first_choice.isnumeric():
+            print("Tryck 0 för att avbryta")
+
+            answer = input("Välj en av ovanstående: ")
+
+            if not answer.isnumeric() or 1 > int(answer) <= len(alarm_list):
                 print("Ej giltigt värde, försök igen")
                 continue
 
-            if 0 < int(first_choice) < len(self.menu_options["add"]):
-                what = ["cpu", "memory", "disk"][int(first_choice) - 1]
-
-                while True:
-                    values = list(self.monitor.alarms[what])
-
-                    if len(values) == 0:
-                        print("Det finns inga alarm att ta bort")
-                        break
-
-                    print("Dessa nivåer är tillgängliga")
-
-                    for number, value in enumerate(values, 1):
-                        print(f"{number}: {value}")
-
-                    second_choice = input("Välj en av ovanstående: ")
-
-                    if not second_choice.isnumeric():
-                        print("Ej giltigt värde, försök igen")
-                        continue
-
-                    if 0 < int(second_choice) <= len(self.monitor.alarms[what]):
-                        self.monitor.remove_alarm(what, values[int(second_choice) - 1])
-                        break
-
-            elif int(first_choice) == 4:
+            if answer.strip() == "0":
                 break
 
+            self.monitor.remove_alarm(alarm_list[int(answer) - 1])
+            break
+
+        return None
+
     def show_alarms(self) -> None:
-        monitor_types = [
-            ("cpu", "CPU larm"),
-            ("memory", "Minneslarm"),
-            ("disk", "Disklarm"),
-        ]
+        if self.monitor is None:
+            print("Ingen övervakning körs just nu.")
 
-        print(self.monitor.alarms)
+        elif len(self.monitor.alarms) == 0:
+            print("Det finns inga alarm konfigurerade.")
 
-        for key, text in monitor_types:
-            for value in self.monitor.alarms[key]:
-                print(f"{text}: {value}%")
+        else:
+            for alarm in self.monitor.alarms:
+                print(alarm)
 
     def show_menu(self, which_menu) -> None:
         print(
             "\n".join(
                 [
-                    f"{number}: {menu_option[0]}"
-                    for number, menu_option in enumerate(
-                        self.menu_options[which_menu], 1
-                    )
+                    f"{number}: {menu_option}"
+                    for number, menu_option in enumerate(which_menu, 1)
                 ]
             )
         )
@@ -172,21 +186,11 @@ class Manager:
             elif int(answer) == 4:
                 self.remove_alarm()
             elif int(answer) == 5:
-                try:
-                    while True:
-                        alerts = self.monitor.check_alarms()
-
-                        if len(alerts) == 0:
-                            print("Inga värden överstiger larmnivåerna")
-                        else:
-                            for alert in alerts:
-                                print(
-                                    f"{alert['timestamp'].strftime('%Y-%m-%d %H:%m.%S')}"
-                                    f" {alert['alarm_type']} {alert['current']} > {alert['alarm_level']}"
-                                )
-                        sleep(5)
-                except KeyboardInterrupt:
-                    pass
+                self.monitor.toggle_stdout_logging()
+                t = threading.Thread(target=keyboard_reaction)
+                t.start()
+                t.join()
+                self.monitor.toggle_stdout_logging()
             elif int(answer) == 6:
                 self.show_alarms()
             elif int(answer) == 7:

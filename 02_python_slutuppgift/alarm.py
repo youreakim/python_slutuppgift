@@ -1,15 +1,12 @@
 from abc import ABC, abstractmethod
+from datetime import datetime
 
 import psutil
 
 
 class Alarm(ABC):
     @abstractmethod
-    def to_json(self) -> dict:
-        pass
-
-    @abstractmethod
-    def triggered(self) -> bool:
+    def triggered(self) -> dict | None:
         pass
 
 
@@ -33,11 +30,25 @@ class MemoryAlarm(Alarm):
     def __str__(self):
         return f"{self.category.capitalize()} larm: {self.level}%"
 
-    def to_json(self):
-        return {"category": self.category, "level": self.level}
+    def __iter__(self):
+        for key in self.__dict__:
+            yield key, getattr(self, key)
 
     def triggered(self):
-        return psutil.virtual_memory().percent >= self.level
+        current_level = psutil.virtual_memory().percent
+        if current_level >= self.level:
+            alert = dict(self)
+
+            alert.update(
+                {
+                    "timestamp": datetime.now().isoformat(),
+                    "current_level": current_level,
+                }
+            )
+
+            return alert
+
+        return None
 
 
 class CPUAlarm(Alarm):
@@ -60,11 +71,25 @@ class CPUAlarm(Alarm):
     def __str__(self):
         return f"{self.category.capitalize()} larm: {self.level}%"
 
-    def to_json(self):
-        return {"category": self.category, "level": self.level}
+    def __iter__(self):
+        for key in self.__dict__:
+            yield key, getattr(self, key)
 
     def triggered(self):
-        return psutil.cpu_percent() >= self.level
+        current_level = psutil.cpu_percent()
+        if current_level >= self.level:
+            alert = dict(self)
+
+            alert.update(
+                {
+                    "timestamp": datetime.now().isoformat(),
+                    "current_level": current_level,
+                }
+            )
+
+            return alert
+
+        return None
 
 
 class DiskAlarm(Alarm):
@@ -96,15 +121,25 @@ class DiskAlarm(Alarm):
     def __str__(self):
         return f"Disk larm för partition {self.mountpoint}: {self.level}%"
 
-    def to_json(self):
-        return {
-            "category": self.category,
-            "level": self.level,
-            "mountpoint": self.mountpoint,
-        }
+    def __iter__(self):
+        for key in self.__dict__:
+            yield key, getattr(self, key)
 
     def triggered(self):
-        return psutil.disk_usage(self.mountpoint).percent >= self.level
+        current_level = psutil.disk_usage(self.mountpoint).percent
+        if current_level >= self.level:
+            alert = dict(self)
+
+            alert.update(
+                {
+                    "timestamp": datetime.now().isoformat(),
+                    "current_level": current_level,
+                }
+            )
+
+            return alert
+
+        return None
 
 
 if __name__ == "__main__":
