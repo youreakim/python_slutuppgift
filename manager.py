@@ -35,12 +35,6 @@ class Manager:
                 "Diskanvändning",
                 "Tillbaka till huvudmenyn",
             ],
-            "remove": [
-                "CPU användning",
-                "Minnesanvändning",
-                "Diskanvändning",
-                "Tillbaka till huvudmenyn",
-            ],
         }
         self.current_menu = "main"
         self.monitor = Monitor()
@@ -171,30 +165,28 @@ class Manager:
             )
         )
 
+    def show_current_monitoring(self) -> None:
+        self.monitor.toggle_stdout_logging()
+        t = threading.Thread(target=keyboard_reaction)
+        t.start()
+        t.join()
+        self.monitor.toggle_stdout_logging()
+
     def process_answer(self) -> None:
         answer = input("Välj en av ovanstående: ")
 
         answer = answer.strip()
 
         if answer.isnumeric() and "." not in answer:
-            if int(answer) == 1:
-                self.start_monitoring()
-            elif int(answer) == 2:
-                self.list_current_status()
-            elif int(answer) == 3:
-                self.add_alarm()
-            elif int(answer) == 4:
-                self.remove_alarm()
-            elif int(answer) == 5:
-                self.monitor.toggle_stdout_logging()
-                t = threading.Thread(target=keyboard_reaction)
-                t.start()
-                t.join()
-                self.monitor.toggle_stdout_logging()
-            elif int(answer) == 6:
-                self.show_alarms()
-            elif int(answer) == 7:
-                sys.exit()
+            [
+                self.start_monitoring,
+                self.list_current_status,
+                self.add_alarm,
+                self.remove_alarm,
+                self.show_current_monitoring,
+                self.show_alarms,
+                sys.exit,
+            ][int(answer) - 1]()
         else:
             print(f"{answer} är inte ett giltigt värde")
 
