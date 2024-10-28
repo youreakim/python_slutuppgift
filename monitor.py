@@ -1,12 +1,15 @@
 import json
 import os
+import queue
+from datetime import datetime
 from time import sleep
 
 import psutil
+
 from alarm import Alarm, CPUAlarm, DiskAlarm, MemoryAlarm
 
 
-def bytes_to_readable(mem):
+def bytes_to_readable(mem: int) -> tuple[float, str]:
     units = ["B", "KB", "MB", "GB", "TB", "PB"]
     d = 1
     count = 0
@@ -21,15 +24,27 @@ def bytes_to_readable(mem):
 class Monitor:
     def __init__(self) -> None:
         self.alarms = set()
-        # self.is_active = False
+        self.is_active = False
         self.log_to_stdout = False
         self.config_file = os.path.join(os.path.dirname(__file__), "config.json")
+        self.queue = queue.Queue()
+        self.log_file_name = f"log_{datetime.now().strftime('%Y_%m_%d_%H_%M')}.txt"
 
         if os.path.exists(self.config_file):
             with open(self.config_file, "r") as fp:
                 config = json.load(fp)
 
+                partitions = [x.mountpoint for x in psutil.disk_partitions()]
+
+                print("Laddar tidigare konfigurerade alarm")
+
                 for alarm in config:
+                    if (
+                        alarm["category"] == "disk"
+                        and alarm["mountpoint"] not in partitions
+                    ):
+                        continue
+
                     self.alarms.add(
                         {"disk": DiskAlarm, "memory": MemoryAlarm, "cpu": CPUAlarm}[
                             alarm["category"]
@@ -37,10 +52,15 @@ class Monitor:
                     )
 
     def run(self) -> None:
+        self.is_active = True
+
+        with open(self.log_file_name, "a") as log_file:
+            print(f"{datetime.now().isoformat()} Startar övervakning", file=log_file)
+
         while True:
             alerts = self.check_alarms()
 
-            with open("log.txt", "a") as log_file:
+            with open(self.log_file_name, "a") as log_file:
                 for alert in alerts:
                     log_text = (
                         f"{alert['timestamp']} {alert['category']} alarm triggered, "
@@ -50,7 +70,7 @@ class Monitor:
                     print(log_text, file=log_file)
 
                     if self.log_to_stdout:
-                        print(log_text)
+                        self.queue.put(alert)
 
             sleep(5)
 
@@ -66,11 +86,10 @@ class Monitor:
     def get_current_status(self) -> dict:
         cpu_load = psutil.cpu_percent()
 
-        memory_percentage = psutil.virtual_memory().percent
-        memory_used, memory_used_unit = bytes_to_readable(psutil.virtual_memory().used)
-        memory_total, memory_total_unit = bytes_to_readable(
-            psutil.virtual_memory().total
-        )
+        mem = psutil.virtual_memory()
+
+        memory_used, memory_used_unit = bytes_to_readable(mem.used)
+        memory_total, memory_total_unit = bytes_to_readable(mem.total)
 
         disk_info = []
 
@@ -92,23 +111,34 @@ class Monitor:
         return {
             "cpu": cpu_load,
             "memory": {
-                "percent": memory_percentage,
+                "percent": mem.percent,
                 "total": f"{memory_total} {memory_total_unit}",
                 "used": f"{memory_used} {memory_used_unit}",
             },
             "disk": disk_info,
         }
 
-    def add_alarm(self, alarm_dict: dict) -> None:
+    def add_alarm(self, alarm_dict: dict) -> Alarm:
         new_alarm = {"disk": DiskAlarm, "memory": MemoryAlarm, "cpu": CPUAlarm}[
             alarm_dict["category"]
         ](**alarm_dict)
+
+        with open(self.log_file_name, "a") as log_file:
+            print(
+                f"{datetime.now().isoformat()} Nytt alarm skapat: {alarm}",
+                file=log_file,
+            )
 
         self.alarms.add(new_alarm)
 
         self.save_config_file()
 
+        return new_alarm
+
     def remove_alarm(self, al: Alarm) -> None:
+        with open(self.log_file_name, "a") as log_file:
+            print(f"{datetime.now().isoformat()} Alarm borttaget: {al}", file=log_file)
+
         self.alarms.discard(al)
 
         self.save_config_file()

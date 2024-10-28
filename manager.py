@@ -1,20 +1,34 @@
 import sys
-import termios
 import threading
-import tty
 
 import psutil
+
 from monitor import Monitor
 
+if psutil.LINUX:
+    import termios
+    import tty
 
-def keyboard_reaction():
-    fd = sys.stdin.fileno()
-    old_settings = termios.tcgetattr(fd)
-    try:
-        tty.setraw(sys.stdin.fileno())
-        sys.stdin.read(1)
-    finally:
-        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+    def keyboard_reaction(monitor):
+        fd = sys.stdin.fileno()
+        old_settings = termios.tcgetattr(fd)
+        try:
+            tty.setraw(sys.stdin.fileno())
+            sys.stdin.read(1)
+        finally:
+            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+            monitor.toggle_stdout_logging()
+
+elif psutil.WINDOWS:
+    import msvcrt
+
+    def keyboard_reaction(monitor):
+        while True:
+            if msvcrt.kbhit():
+                msvcrt.getch()
+                break
+
+        monitor.toggle_stdout_logging()
 
 
 class Manager:
@@ -50,6 +64,10 @@ class Manager:
         threading.Thread(target=self.monitor.run, daemon=True).start()
 
     def list_current_status(self) -> None:
+        if not self.monitor.is_active:
+            print("Ingen övervakning är aktiv, välj starta övervakning i huvudmenyn")
+            return
+
         current_status = self.monitor.get_current_status()
 
         print(f"CPU användning: {current_status['cpu']}%")
@@ -115,7 +133,9 @@ class Manager:
             alarm["level"] = int(answer)
             break
 
-        self.monitor.add_alarm(alarm)
+        al = self.monitor.add_alarm(alarm)
+
+        print(f"Nytt alarm skapat: {al}")
 
     def remove_alarm(self) -> None:
         if len(self.monitor.alarms) == 0:
@@ -167,10 +187,16 @@ class Manager:
 
     def show_current_monitoring(self) -> None:
         self.monitor.toggle_stdout_logging()
-        t = threading.Thread(target=keyboard_reaction)
+        t = threading.Thread(target=keyboard_reaction, args=(self.monitor,))
         t.start()
+        while self.monitor.log_to_stdout:
+            if not self.monitor.queue.empty():
+                alert = self.monitor.queue.get()
+                print(
+                    f"{alert['timestamp']} {alert['category']} "
+                    f"{alert['current_level']} > {alert['level']}"
+                )
         t.join()
-        self.monitor.toggle_stdout_logging()
 
     def process_answer(self) -> None:
         answer = input("Välj en av ovanstående: ")
