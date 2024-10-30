@@ -177,7 +177,7 @@ class Monitor:
                 partition_alerts = [
                     alert
                     for alert in disk_alerts
-                    if alert["alarm"].partition == partition
+                    if alert["alarm"].mountpoint == partition
                 ]
 
                 if len(partition_alerts) > 0:
