@@ -37,14 +37,11 @@ class MemoryAlarm(Alarm):
     def triggered(self):
         current_level = psutil.virtual_memory().percent
         if current_level >= self.level:
-            alert = dict(self)
-
-            alert.update(
-                {
-                    "timestamp": datetime.now().isoformat(),
-                    "current_level": current_level,
-                }
-            )
+            alert = {
+                "alarm": self,
+                "timestamp": datetime.now().isoformat(),
+                "current_level": current_level,
+            }
 
             return alert
 
@@ -78,14 +75,11 @@ class CPUAlarm(Alarm):
     def triggered(self):
         current_level = psutil.cpu_percent()
         if current_level >= self.level:
-            alert = dict(self)
-
-            alert.update(
-                {
-                    "timestamp": datetime.now().isoformat(),
-                    "current_level": current_level,
-                }
-            )
+            alert = {
+                "alarm": self,
+                "timestamp": datetime.now().isoformat(),
+                "current_level": current_level,
+            }
 
             return alert
 
@@ -128,14 +122,11 @@ class DiskAlarm(Alarm):
     def triggered(self):
         current_level = psutil.disk_usage(self.mountpoint).percent
         if current_level >= self.level:
-            alert = dict(self)
-
-            alert.update(
-                {
-                    "timestamp": datetime.now().isoformat(),
-                    "current_level": current_level,
-                }
-            )
+            alert = {
+                "alarm": self,
+                "timestamp": datetime.now().isoformat(),
+                "current_level": current_level,
+            }
 
             return alert
 

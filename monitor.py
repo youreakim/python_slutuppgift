@@ -125,7 +125,7 @@ class Monitor:
 
         with open(self.log_file_name, "a") as log_file:
             print(
-                f"{datetime.now().isoformat()} Nytt alarm skapat: {alarm}",
+                f"{datetime.now().isoformat()} Nytt alarm skapat: {new_alarm}",
                 file=log_file,
             )
 
@@ -146,7 +146,52 @@ class Monitor:
     def check_alarms(self) -> list:
         alerts = [alarm.triggered() for alarm in self.alarms]
 
-        return [alert for alert in alerts if alert is not None]
+        max_alerts = []
+        cpu_alerts = [
+            alert
+            for alert in alerts
+            if alert is not None and isinstance(alert["alarm"], CPUAlarm)
+        ]
+        if len(cpu_alerts) > 0:
+            max_alerts.append(
+                sorted(cpu_alerts, key=lambda alert: alert["alarm"].level)[-1]
+            )
+
+        memory_alerts = [
+            alert
+            for alert in alerts
+            if alert is not None and isinstance(alert["alarm"], MemoryAlarm)
+        ]
+        if len(memory_alerts) > 0:
+            max_alerts.append(
+                sorted(memory_alerts, key=lambda alert: alert["alarm"].level)[-1]
+            )
+
+        disk_alerts = [
+            alert
+            for alert in alerts
+            if alert is not None and isinstance(alert["alarm"], DiskAlarm)
+        ]
+        if len(disk_alerts) > 0:
+            partitions = [
+                partition.mountpoint for partition in psutil.disk_partitions()
+            ]
+
+            for partition in partitions:
+                partition_alerts = [
+                    alert
+                    for alert in disk_alerts
+                    if alert["alarm"].partition == partition
+                ]
+
+                if len(partition_alerts) > 0:
+                    max_alerts.append(
+                        sorted(
+                            partition_alerts, key=lambda alert: alert["alarm"].level
+                        )[-1]
+                    )
+
+        return max_alerts
 
 
 if __name__ == "__main__":
