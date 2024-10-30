@@ -153,7 +153,7 @@ class Monitor:
             if alert is not None and isinstance(alert["alarm"], CPUAlarm)
         ]
         if len(cpu_alerts) > 0:
-            max_alerts.append(max(cpu_alerts, key=lambda alert: alert["alarm"].level))
+            max_alerts.append(max(cpu_alerts, key=lambda alert: alert["alarm"]))
 
         memory_alerts = [
             alert
@@ -161,9 +161,7 @@ class Monitor:
             if alert is not None and isinstance(alert["alarm"], MemoryAlarm)
         ]
         if len(memory_alerts) > 0:
-            max_alerts.append(
-                max(memory_alerts, key=lambda alert: alert["alarm"].level)
-            )
+            max_alerts.append(max(memory_alerts, key=lambda alert: alert["alarm"]))
 
         disk_alerts = [
             alert
@@ -184,7 +182,7 @@ class Monitor:
 
                 if len(partition_alerts) > 0:
                     max_alerts.append(
-                        max(partition_alerts, key=lambda alert: alert["alarm"].level)
+                        max(partition_alerts, key=lambda alert: alert["alarm"])
                     )
 
         return max_alerts

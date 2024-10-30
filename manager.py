@@ -152,7 +152,7 @@ class Manager:
 
             answer = input("Välj en av ovanstående: ")
 
-            if not answer.isnumeric() or 1 > int(answer) <= len(alarm_list):
+            if not answer.isnumeric() or 0 < int(answer) >= len(alarm_list):
                 print("Ej giltigt värde, försök igen")
                 continue
 
@@ -194,7 +194,8 @@ class Manager:
                 alert = self.monitor.queue.get()
                 print(
                     f"{alert['timestamp']} {alert['alarm'].category} "
-                    f"{alert['current_level']} > {alert['alarm'].level}"
+                    f"{alert['current_level']} > {alert['alarm'].level}",
+                    end="\n\r",
                 )
         t.join()
 
