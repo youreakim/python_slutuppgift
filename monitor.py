@@ -63,8 +63,8 @@ class Monitor:
             with open(self.log_file_name, "a") as log_file:
                 for alert in alerts:
                     log_text = (
-                        f"{alert['timestamp']} {alert['category']} alarm triggered, "
-                        f"{alert['current_level']} > {alert['level']}"
+                        f"{alert['timestamp']} {alert['alarm'].category} alarm triggered, "
+                        f"{alert['current_level']} > {alert['alarm'].level}"
                     )
 
                     print(log_text, file=log_file)
@@ -153,9 +153,7 @@ class Monitor:
             if alert is not None and isinstance(alert["alarm"], CPUAlarm)
         ]
         if len(cpu_alerts) > 0:
-            max_alerts.append(
-                sorted(cpu_alerts, key=lambda alert: alert["alarm"].level)[-1]
-            )
+            max_alerts.append(max(cpu_alerts, key=lambda alert: alert["alarm"].level))
 
         memory_alerts = [
             alert
@@ -164,7 +162,7 @@ class Monitor:
         ]
         if len(memory_alerts) > 0:
             max_alerts.append(
-                sorted(memory_alerts, key=lambda alert: alert["alarm"].level)[-1]
+                max(memory_alerts, key=lambda alert: alert["alarm"].level)
             )
 
         disk_alerts = [
@@ -186,9 +184,7 @@ class Monitor:
 
                 if len(partition_alerts) > 0:
                     max_alerts.append(
-                        sorted(
-                            partition_alerts, key=lambda alert: alert["alarm"].level
-                        )[-1]
+                        max(partition_alerts, key=lambda alert: alert["alarm"].level)
                     )
 
         return max_alerts

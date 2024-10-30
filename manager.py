@@ -87,7 +87,7 @@ class Manager:
             )
 
         print("Tryck på valfri tangent för att återgå till huvudmenyn")
-        t = threading.Thread(target=keyboard_reaction)
+        t = threading.Thread(target=keyboard_reaction, args=(self.monitor,))
         t.start()
         t.join()
 
@@ -193,8 +193,8 @@ class Manager:
             if not self.monitor.queue.empty():
                 alert = self.monitor.queue.get()
                 print(
-                    f"{alert['timestamp']} {alert['category']} "
-                    f"{alert['current_level']} > {alert['level']}"
+                    f"{alert['timestamp']} {alert['alarm'].category} "
+                    f"{alert['current_level']} > {alert['alarm'].level}"
                 )
         t.join()
 

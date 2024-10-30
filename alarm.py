@@ -137,6 +137,13 @@ if __name__ == "__main__":
     a = CPUAlarm("cpu", 1)
     b = MemoryAlarm("memory", 10)
     c = DiskAlarm("disk", 40, "/")
+    d = MemoryAlarm("memory", 5)
+
+    alerts = [b.triggered(), d.triggered()]
+
+    highest = max(alerts, key=lambda alert: alert["alarm"])
+
+    print(highest["alarm"])
 
     print(f"Current cpu usage: {psutil.cpu_percent()}%")
     print(a.triggered())
