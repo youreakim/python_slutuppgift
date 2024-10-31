@@ -186,6 +186,10 @@ class Manager:
         )
 
     def show_current_monitoring(self) -> None:
+        if not self.monitor.is_active:
+            print("Ingen övervakning är aktiv, välj starta övervakning i huvudmenyn")
+            return
+
         self.monitor.toggle_stdout_logging()
         t = threading.Thread(target=keyboard_reaction, args=(self.monitor,))
         t.start()
@@ -194,6 +198,7 @@ class Manager:
                 alert = self.monitor.queue.get()
                 print(
                     f"{alert['timestamp']} {alert['alarm'].category} "
+                    f"{alert['alarm'].mountpoint + ' ' if alert['alarm'].category == 'disk' else ''}"
                     f"{alert['current_level']} > {alert['alarm'].level}",
                     end="\n\r",
                 )
