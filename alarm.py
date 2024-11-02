@@ -1,3 +1,5 @@
+"""Contains classes to monitor system resources (memory, disk and cpu)."""
+
 from abc import ABC, abstractmethod
 from datetime import datetime
 
@@ -6,8 +8,9 @@ import psutil
 
 class Alarm(ABC):
     @abstractmethod
-    def triggered(self) -> dict | None:
-        pass
+    def check_alarm(self) -> dict | None:
+        """Checks if the system resource is higher than the level set,
+        if so returns a dictionary containing the alarm and some other data."""
 
 
 class MemoryAlarm(Alarm):
@@ -34,7 +37,7 @@ class MemoryAlarm(Alarm):
         for key in self.__dict__:
             yield key, getattr(self, key)
 
-    def triggered(self):
+    def check_alarm(self):
         current_level = psutil.virtual_memory().percent
         if current_level >= self.level:
             alert = {
@@ -72,7 +75,7 @@ class CPUAlarm(Alarm):
         for key in self.__dict__:
             yield key, getattr(self, key)
 
-    def triggered(self):
+    def check_alarm(self):
         current_level = psutil.cpu_percent()
         if current_level >= self.level:
             alert = {
@@ -119,7 +122,7 @@ class DiskAlarm(Alarm):
         for key in self.__dict__:
             yield key, getattr(self, key)
 
-    def triggered(self):
+    def check_alarm(self):
         current_level = psutil.disk_usage(self.mountpoint).percent
         if current_level >= self.level:
             alert = {
@@ -139,19 +142,19 @@ if __name__ == "__main__":
     c = DiskAlarm("disk", 40, "/")
     d = MemoryAlarm("memory", 5)
 
-    alerts = [b.triggered(), d.triggered()]
+    alerts = [b.check_alarm(), d.check_alarm()]
 
     highest = max(alerts, key=lambda alert: alert["alarm"])
 
     print(highest["alarm"])
 
     print(f"Current cpu usage: {psutil.cpu_percent()}%")
-    print(a.triggered())
+    print(a.check_alarm())
 
     print(f"Current memory usage: {psutil.virtual_memory().percent}%")
-    print(b.triggered())
+    print(b.check_alarm())
 
     print(
         f"Current disk usage for partition {c.mountpoint}: {psutil.disk_usage(c.mountpoint).percent}%"
     )
-    print(c.triggered())
+    print(c.check_alarm())
